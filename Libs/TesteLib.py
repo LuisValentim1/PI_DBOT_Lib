@@ -1,5 +1,5 @@
-from DBoT.DB import DB
-from Parser.JsonParser import JsonParser
+from DB import DB
+from JsonParser import JsonParser
 import time
 
 DB_Obj = DB('pitest')
