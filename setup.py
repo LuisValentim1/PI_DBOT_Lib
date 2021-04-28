@@ -18,5 +18,5 @@ setup(
       author_email='lvalentim@ua.pt',
       url='https://github.com/LuisValentim1/PI_DBOT_Lib',
       packages=find_packages(),
-      install_requires=['Cassandra>=3.11.10']
+      install_requires=['cassandra_driver==3.22.0']
 )
