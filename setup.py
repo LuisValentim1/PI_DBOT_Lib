@@ -9,7 +9,7 @@ here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
-      name='Libs',
+      name='DBoT',
       version='0.1',
       description='DBOT Libs',
       long_description=long_description,
