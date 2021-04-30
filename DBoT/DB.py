@@ -4,9 +4,9 @@ from datetime import datetime
 class DB:
 
     #Inicializador
-    def __init__(self, name):
+    def __init__(self):
         self.cluster = Cluster()
-        self.session = self.cluster.connect(name)
+        self.session = self.cluster.connect('db')
         try:
             self.session.execute("create table metadata (tableName text, tableAtributes list<text>, PRIMARY KEY(tableName) )")
             self.session.execute("create table tableNum (pk int, num int, PRIMARY KEY(pk) )")
@@ -43,7 +43,7 @@ class DB:
 
         for key in flatJson.keys():                                 # Para cada chave do flatJson
             key = key.lower()
-            atrTables = self.session.execute("SELECT table_name from system_schema.tables where keyspace_name='pitest'")
+            atrTables = self.session.execute("SELECT table_name from system_schema.tables where keyspace_name='db'")
             atrList = [atr[0] for atr in atrTables]                 #Lista das tabelas secundárias que já possuem tabela criada
             if not key + '_table' in atrList :
                 self.session.execute("create table " + key + "_table(tableName text, pk text," + key + " text, PRIMARY KEY( tableName, " + key + ", pk))")
@@ -403,14 +403,23 @@ class DB:
     def countHandler(self, returnList):
         return ["row[" + str(len(returnList)) + "]"]
 
+    def getAllValuesOn(self, atribute):
+        valueRows = self.session.execute("Select " + atribute + " from " + atribute + "_table")
+
+        values = [row[0] for row in valueRows]
+
+        return values
+
     # Função para apresentar as tabelas de registos existentes e que atributos possui cada tabela
-    def showTables(self):
+    def getTables(self):
         tableRows = self.session.execute("Select * from metadata")
-        for row in tableRows:
-            print(row[0] + " - " + str(row[1]))
+
+        tables = [row[0] for row in tableRows]
+
+        return tables
 
     # Função para mostrar os utilizadores existentes na base de dados
-    def showUsers(self):
+    def getUsers(self):
         userRows = self.session.execute("Select * from sensors")
         users = []
         for row in userRows:
@@ -418,11 +427,18 @@ class DB:
         
         users = list(dict.fromkeys(users))
 
-        for user in users:
-            print(user)
+        return users
+
+    def getSensors(self, user):
+        userRows = self.session.execute("Select * from sensors where user = '" + user + "'")
+
+        sensors = [row[1] for row in userRows]
+
+        return sensors
 
     # Função que mostra as tabelas e atributos respetivos às mesmas mas apenas aquelas nas quais o utilizador tem registos
-    def showMyTables(self, user):
+    def getMyTables(self, user):
+        ret = []
         userRows = self.session.execute("Select * from sensors where user = '" + user + "'" )
         tables = []
 
