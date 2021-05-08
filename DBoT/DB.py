@@ -8,7 +8,7 @@ class DB:
         self.cluster = Cluster()
         self.session = self.cluster.connect('db')
         try:
-            self.session.execute("create table metadata(atribute text, pkList list<text>, PRIMARY KEY(atribute) )")
+            self.session.execute("create table metadata(atribute text, pk text, PRIMARY KEY(atribute, pk) )")
             self.session.execute("create table sensors(sensor_id text, user text, pkList list<text>, PRIMARY KEY(user, sensor_id) )")
         except:
             pass
@@ -24,28 +24,21 @@ class DB:
         return False                                                            # Caso contrário retornar False
 
     # Função para criar tabelas
-    def createTable(self, atribute, pk_id):
-
-        pkList = [pk_id]
+    def createTable(self, atribute):
 
         self.session.execute("create table " + atribute + "_table(pk text, " + atribute + " text, PRIMARY KEY( pk, " + atribute + "))")
 
-        self.session.execute("insert into metadata(atribute, pkList) values('" + atribute + "', " + str(pkList) + ")")                # Adicionar a a tabela principal à tabela de metadados                                        # Retorna o table_name da tabela principal criada
-        
+                
     # Função de inserção de um json
     def insertInto(self, flatJson, pk_id):           # Os parametros são o json e a pk que será passada pela API
+        if "timeStamp" not in flatJson:
+            flatJson["timeStamp"] = str(datetime.now())
 
         for key in flatJson:
             if not self.checkTable(key):
-                self.createTable(key, pk_id)
-            
+                self.createTable(key)
             self.session.execute("insert into " + key + "_table(pk, " + key + ") values('" + pk_id + "', '" + flatJson[key] + "')")
-
-            pkList = self.session.execute("select pkList from metadata where atribute='" + key + "'").one()[0]
-
-            if not pk_id in pkList:
-                pkList.append(pk_id)
-                self.session.execute("update metadata set pkList = " + str(pkList) + " where atribute = '" + key + "'")
+            self.session.execute("insert into metadata(atribute, pk) values('" + key + "', '" + pk_id + "')")
 
     #Função de inserção num sensor
     def insertIntoSensor(self, flatJson, sensor_id, user):
@@ -102,8 +95,11 @@ class DB:
         userPks = list(dict.fromkeys(userPks))
 
         for atribute in atributes:
-            atributePkQuery = self.session.execute("select pkList from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = atributePkQuery.one()[0]
+            atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
+            atributePkDict[atribute] = []
+            for row in atributePkQuery:
+                if row[0] in userPks:
+                    atributePkDict[atribute].append(row[0])
 
         for key in paramConditionDictionary:
             keyPkList = []
@@ -111,21 +107,21 @@ class DB:
                 keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
             possiblePkLists.append(keyPkList)
 
-        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists) 
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+        possiblePkLists.remove(None)
 
         retList = []
 
         for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
-            if pk in userPks:                                                       # Se este é um dos pks do utilizador executar a query nessa tabela por esse pk
-                regDict = {}
-                for par in projList:
-                    strCommand = "select "
-                    strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
-                    result = self.session.execute(strCommand)
-                    if not result == None:
-                        regDict[self.agrHandler(par)] = result.one()[0]
-                if len(regDict) == len(projList):
-                    retList.append(regDict)
+            regDict = {}
+            for par in projList:
+                strCommand = "select "
+                strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
+                result = self.session.execute(strCommand)
+                if not result == None:
+                    regDict[self.agrHandler(par)] = result.one()[0]
+            if len(regDict) == len(projList):
+                retList.append(regDict)
 
         agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
         if agrFlag == "AVG:":
@@ -154,8 +150,11 @@ class DB:
         atributePkDict = {}
 
         for atribute in atributes:
-            atributePkQuery = self.session.execute("select pkList from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = atributePkQuery.one()[0]
+            atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
+            atributePkDict[atribute] = []
+            for row in atributePkQuery:
+                if row[0] in sensorPks:
+                    atributePkDict[atribute].append(row[0])
 
         for key in paramConditionDictionary:
             keyPkList = []
@@ -163,7 +162,8 @@ class DB:
                 keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
             possiblePkLists.append(keyPkList)
 
-        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists) 
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+        possiblePkLists.remove(None)
 
         retList = []
 
@@ -218,10 +218,6 @@ class DB:
 
     # Função para retirar a média dos resultados
     def averageHandler(self, returnList, atribute):
-        print(atribute)
-        print(returnList)
-        print(returnList[0])
-        print(returnList[0][atribute])
 
         if not returnList[0][atribute].isnumeric():
             print("Invalid parameter for average")
