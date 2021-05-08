@@ -1,4 +1,5 @@
 from cassandra.cluster import Cluster
+import uuid
 from datetime import datetime
 
 class DB:
@@ -44,7 +45,7 @@ class DB:
     def insertIntoSensor(self, flatJson, sensor_id, user):
 
         sensor_id = str(sensor_id)
-        pk_id = sensor_id + user + str(datetime.now())
+        pk_id = str(uuid.uuid1())
 
         self.insertInto(flatJson, pk_id)                                                        # Inserir o registo com a função principal de inserção
         
