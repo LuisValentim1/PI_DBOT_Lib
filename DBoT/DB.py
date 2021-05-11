@@ -444,6 +444,7 @@ class DB:
         for row in atributeRows:
             if row[0] not in atList:
                 atList.append(row[0])
+        return atList
     }
     
     # Função para printar resultados
