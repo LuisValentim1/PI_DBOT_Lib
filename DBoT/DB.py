@@ -9,8 +9,8 @@ class DB:
         self.cluster = Cluster()
         self.session = self.cluster.connect('db')
         try:
-            self.session.execute("create table metadata(atribute text, pk text, PRIMARY KEY(atribute, pk) )")
-            self.session.execute("create table sensors(sensor_id text, user text, pkList list<text>, PRIMARY KEY(user, sensor_id) )")
+            self.session.execute("create table metadata(atribute text, pk text, timestamp text, PRIMARY KEY(atribute, pk) )")
+            self.session.execute("create table sensors(sensor_id text, user text, pk text, PRIMARY KEY(user, sensor_id, pk) )")
         except:
             pass
 
@@ -26,7 +26,6 @@ class DB:
 
     # Função para criar tabelas
     def createTable(self, atribute):
-        atribute = atribute.lower()
         self.session.execute("create table " + atribute + "_table(pk text, " + atribute + " text, PRIMARY KEY( pk, " + atribute + "))")
 
                 
@@ -36,12 +35,11 @@ class DB:
             flatJson["timeStamp"] = str(datetime.now())
 
         for key in flatJson:
-            keyO = key
-            key = key.lower()
-            if not self.checkTable(key):
+            keyLower = key.lower()
+            if not self.checkTable(keyLower):
                 self.createTable(key)
-            self.session.execute("insert into " + key + "_table(pk, " + key + ") values('" + pk_id + "', '" + flatJson[keyO] + "')")
-            self.session.execute("insert into metadata(atribute, pk) values('" + key + "', '" + pk_id + "')")
+            self.session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', '" + flatJson[key] + "')")
+            self.session.execute("insert into metadata(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + flatJson["timeStamp"] +"')")
 
     #Função de inserção num sensor
     def insertIntoSensor(self, flatJson, sensor_id, user):
@@ -49,21 +47,9 @@ class DB:
         sensor_id = str(sensor_id)
         pk_id = str(uuid.uuid1())
 
-        self.insertInto(flatJson, pk_id)                                                        # Inserir o registo com a função principal de inserção
-        
-        sensor = self.session.execute("SELECT * FROM sensors where user = '" + user +"' and sensor_id = '" + sensor_id + "'")   # Procurar pelo sensor na tabela de sensores
-        pkList = []
+        self.insertInto(flatJson, pk_id)                                    # Inserir o registo com a função principal de inserção
 
-        if not sensor:                                                                                                          # Caso o sensor ainda não exista na tabela sensors adicionar                       
-            pkList.append(pk_id)
-            self.session.execute("insert into sensors (sensor_id, user, pkList) values ('" + sensor_id + "', '" + user + "', " + str(pkList) + ")")  
-        else:
-            row = sensor.one()                                                                                                  # Se o sensor já existe mas esta formatação não é uma das associadas, adicionar ao parametro tables e pks            tables = row[3]
-            pkList = row[2]
-            
-            if not pk_id in pkList:
-                pkList.append(pk_id)
-                self.session.execute("update sensors set pkList = " + str(pkList) + " where user = '" + user + "' and sensor_id = '" + sensor_id + "'")
+        self.session.execute("insert into sensors (sensor_id, user, pk) values('" + sensor_id + "', '" + user +"', '" + pk_id + "')")
 
     #Subqueries de apoio a querying complexo // Queries nas tabelas secundárias que permitem encontrar os pks.
     def subQuery(self, pk, param, condition):
@@ -83,32 +69,19 @@ class DB:
     # Função de querying por utilizador
     def queryPerUser(self, user, projList, paramConditionDictionary):
 
-        userPkQuery = self.session.execute("select pkList from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
+        userPkQuery = self.session.execute("select pk from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
         
         possiblePkLists = []
-        userPkLists = [row[0] for row in userPkQuery]
-        userPks = []
+        userPks = [row[0] for row in userPkQuery]
         atributes = [key for key in paramConditionDictionary]
         atributePkDict = {}
 
-        for userPkList in userPkLists:
-            for userPk in userPkList:
-                userPks.append(userPk)
-
-        userPks = list(dict.fromkeys(userPks))
-
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = []
-            for row in atributePkQuery:
-                if row[0] in userPks:
-                    atributePkDict[atribute].append(row[0])
-        
+            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in userPks]
 
         for key in paramConditionDictionary:
-            keyPkList = []
-            for pk in atributePkDict[key]:
-                keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
+            keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
 
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -147,32 +120,21 @@ class DB:
 
     def rangeQueryPerUser(self, user, projList, paramConditionDictionary, dateStart, dateFinish):
 
-        userPkQuery = self.session.execute("select pkList from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
+        userPkQuery = self.session.execute("select pk from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
         
         possiblePkLists = []
-        userPkLists = [row[0] for row in userPkQuery]
-        userPks = []
+        userPks = [row[0] for row in userPkQuery]
         atributes = [key for key in paramConditionDictionary]
         atributes.append('timestamp')
         atributePkDict = {}
 
-        for userPkList in userPkLists:
-            for userPk in userPkList:
-                userPks.append(userPk)
-
-        userPks = list(dict.fromkeys(userPks))
-
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = []
-            for row in atributePkQuery:
-                if row[0] in userPks:
-                    atributePkDict[atribute].append(row[0])
+            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in userPks]
+
 
         for key in paramConditionDictionary:
-            keyPkList = []
-            for pk in atributePkDict[key]:
-                keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
+            keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
         
         keyPkList = []
@@ -219,24 +181,19 @@ class DB:
     # Função de querying por sensor
     def queryPerSensor(self, user, sensor, projList, paramConditionDictionary):
 
-        sensorPkQuery = self.session.execute("select pkList from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")   # Procurar para um utilizador as tabelas e pks associados
+        sensorPkQuery = self.session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")   # Procurar para um utilizador as tabelas e pks associados
                                                      
         possiblePkLists = []
-        sensorPks = sensorPkQuery.one()[0]
+        sensorPks = [row[0] for row in sensorPkQuery]
         atributes = [key for key in paramConditionDictionary]
         atributePkDict = {}
 
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = []
-            for row in atributePkQuery:
-                if row[0] in sensorPks:
-                    atributePkDict[atribute].append(row[0])
+            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in sensorPks]
 
         for key in paramConditionDictionary:
-            keyPkList = []
-            for pk in atributePkDict[key]:
-                keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
+            keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
 
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -279,21 +236,17 @@ class DB:
         sensorPkQuery = self.session.execute("select pkList from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")   # Procurar para um utilizador as tabelas e pks associados
                                                      
         possiblePkLists = []
-        sensorPks = sensorPkQuery.one()[0]
+        sensorPks = [row[0] for row in sensorPkQuery]
         atributes = [key for key in paramConditionDictionary]
+        atributes.append('timestamp')
         atributePkDict = {}
 
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = []
-            for row in atributePkQuery:
-                if row[0] in sensorPks:
-                    atributePkDict[atribute].append(row[0])
+            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in sensorPks]
 
         for key in paramConditionDictionary:
-            keyPkList = []
-            for pk in atributePkDict[key]:
-                keyPkList.append(self.subQuery(pk, key, paramConditionDictionary[key]))
+            keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
 
         keyPkList = []
