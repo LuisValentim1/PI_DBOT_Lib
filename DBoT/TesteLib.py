@@ -2,8 +2,15 @@ from DB import DB
 from JsonParser import JsonParser
 import time
 
+startTimeDB = time.time()
 DB_Obj = DB()
+finishTimeDB = time.time()
+print("DB start --- %s seconds ---" % (finishTimeDB - startTimeDB))
+
+startTimeParser = time.time()
 Parser_Obj = JsonParser()
+finishTimeParser = time.time()
+print("Parser start --- %s seconds ---" % (finishTimeParser - startTimeParser))
 
 start_timeP = time.time()
 flat_j1 = Parser_Obj.read_json('Json_Examples\Json1.json')
@@ -65,11 +72,11 @@ finish_timeI = time.time()
 print("Inserting --- %s seconds ---" % (finish_timeI - start_timeI))
 
 start_time1 = time.time()
-queryResult1 = DB_Obj.rangeQueryPerUser('Luis', ['h', 'timestamp'], {'h': '=12'}, '2020-06-02 10:10:10', '2021-05-10 22:36:20.785976')
+queryResult1 = DB_Obj.rangeQueryPerUser('Luis', ['h'], {'h': '=12'}, '2020-06-02 10:10:10', '2021-05-13 22:36:20.785976')
 finish_time1 = time.time()
 
 start_time2 = time.time()
-queryResult2 = DB_Obj.queryPerUser('Luis', ['h', 'timestamp'], {'h': '=12'})
+queryResult2 = DB_Obj.queryPerUser('Luis', ['h'], {'h': '=12'})
 finish_time2 = time.time()
 
 start_time3 = time.time()

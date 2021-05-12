@@ -9,7 +9,8 @@ class DB:
         self.cluster = Cluster()
         self.session = self.cluster.connect('db')
         try:
-            self.session.execute("create table metadata(atribute text, pk text, timestamp text, PRIMARY KEY(atribute, pk) )")
+            self.session.execute("create table metadata(atribute text, pk text, timestamp text, PRIMARY KEY(atribute, timestamp, pk) )")
+            self.session.execute("create table metadata_reverse(atribute text, pk text, timestamp text, PRIMARY KEY(atribute, pk, timestamp) )")
             self.session.execute("create table sensors(sensor_id text, user text, pk text, PRIMARY KEY(user, sensor_id, pk) )")
         except:
             pass
@@ -31,15 +32,19 @@ class DB:
                 
     # Função de inserção de um json
     def insertInto(self, flatJson, pk_id):           # Os parametros são o json e a pk que será passada pela API
-        if "timeStamp" not in flatJson:
-            flatJson["timeStamp"] = str(datetime.now())
+        timestampNow = ""
+        if "timeStamp" in flatJson:
+            timestampNow = flatJson["timeStamp"]
+        else:
+            timestampNow = str(datetime.now())
 
         for key in flatJson:
             keyLower = key.lower()
             if not self.checkTable(keyLower):
                 self.createTable(key)
             self.session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', '" + flatJson[key] + "')")
-            self.session.execute("insert into metadata(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + flatJson["timeStamp"] +"')")
+            self.session.execute("insert into metadata(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
+            self.session.execute("insert into metadata_reverse(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
 
     #Função de inserção num sensor
     def insertIntoSensor(self, flatJson, sensor_id, user):
@@ -73,7 +78,8 @@ class DB:
         
         possiblePkLists = []
         userPks = [row[0] for row in userPkQuery]
-        atributes = [key for key in paramConditionDictionary]
+        atributes = list(paramConditionDictionary.keys()) + projList
+        atributes = list(set(atributes))
         atributePkDict = {}
 
         for atribute in atributes:
@@ -123,25 +129,20 @@ class DB:
         userPkQuery = self.session.execute("select pk from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
         
         possiblePkLists = []
-        userPks = [row[0] for row in userPkQuery]
-        atributes = [key for key in paramConditionDictionary]
-        atributes.append('timestamp')
+        userPks = [row[0] for row in userPkQuery]  
+        atributes = list(paramConditionDictionary.keys()) + projList
+        atributes = list(set(atributes))
         atributePkDict = {}
 
         for atribute in atributes:
-            atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in userPks]
+            atributePkQueryStart = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp > '" + dateStart +"'")
+            atributePkQueryFinish = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp < '" + dateFinish +"'")
+            atributePkQuery = set([row[0] for row in atributePkQueryStart]).intersection([row[0] for row in atributePkQueryFinish])
+            atributePkDict[atribute] = [pk for pk in atributePkQuery if pk in userPks]
 
 
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
-            possiblePkLists.append(keyPkList)
-        
-        keyPkList = []
-        for pk in atributePkDict['timestamp']:
-            keyPkList.append(self.subQuery(pk, 'timestamp', '>'+dateStart))
-            possiblePkLists.append(keyPkList)
-            keyPkList.append(self.subQuery(pk, 'timestamp', '<'+dateFinish))
             possiblePkLists.append(keyPkList)
 
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -156,10 +157,12 @@ class DB:
             for par in projList:
                 strCommand = "select "
                 strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + par + "' and pk='" + pk + "'")
                 result = self.session.execute(strCommand)
                 if not result == None:
                     regDict[self.agrHandler(par)] = result.one()[0]
-            if len(regDict) == len(projList):
+                    regDict["timestamp"] = timestamp.one()[0]
+            if len(regDict) == len(projList)+1:
                 retList.append(regDict)
 
         agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
@@ -185,7 +188,8 @@ class DB:
                                                      
         possiblePkLists = []
         sensorPks = [row[0] for row in sensorPkQuery]
-        atributes = [key for key in paramConditionDictionary]
+        atributes = list(paramConditionDictionary.keys()) + projList
+        atributes = list(set(atributes))
         atributePkDict = {}
 
         for atribute in atributes:
@@ -237,23 +241,18 @@ class DB:
                                                      
         possiblePkLists = []
         sensorPks = [row[0] for row in sensorPkQuery]
-        atributes = [key for key in paramConditionDictionary]
-        atributes.append('timestamp')
+        atributes = list(paramConditionDictionary.keys()) + projList
+        atributes = list(set(atributes))
         atributePkDict = {}
 
         for atribute in atributes:
-            atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
-            atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in sensorPks]
+            atributePkQueryStart = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp > '" + dateStart +"'")
+            atributePkQueryFinish = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp < '" + dateFinish +"'")
+            atributePkQuery = set([row[0] for row in atributePkQueryStart]).intersection([row[0] for row in atributePkQueryFinish])
+            atributePkDict[atribute] = [pk for pk in atributePkQuery if pk in userPks]
 
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
-            possiblePkLists.append(keyPkList)
-
-        keyPkList = []
-        for pk in atributePkDict['timestamp']:
-            keyPkList.append(self.subQuery(pk, 'timestamp', '>'+dateStart))
-            possiblePkLists.append(keyPkList)
-            keyPkList.append(self.subQuery(pk, 'timestamp', '<'+dateFinish))
             possiblePkLists.append(keyPkList)
 
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
