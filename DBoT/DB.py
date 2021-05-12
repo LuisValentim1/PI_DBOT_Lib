@@ -438,14 +438,14 @@ class DB:
 
         return sensors
 
-    def getAtributes(self){
+    def getAtributes(self):
         atList = []
         atributeRows = self.session.execute("Select atribute from metadata")
         for row in atributeRows:
             if row[0] not in atList:
                 atList.append(row[0])
         return atList
-    }
+    
     
     # Função para printar resultados
     def printResults(resultList):
