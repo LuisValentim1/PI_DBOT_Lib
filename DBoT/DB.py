@@ -153,16 +153,19 @@ class DB:
         retList = []
 
         for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
+            extra = 0
             regDict = {}
+            if "timestamp" not in projList:
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + projList[0] + "' and pk='" + pk + "'")
+                regDict["timestamp"] = timestamp.one()[0]
+                extra = 1
             for par in projList:
                 strCommand = "select "
                 strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
-                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + par + "' and pk='" + pk + "'")
                 result = self.session.execute(strCommand)
                 if not result == None:
                     regDict[self.agrHandler(par)] = result.one()[0]
-                    regDict["timestamp"] = timestamp.one()[0]
-            if len(regDict) == len(projList)+1:
+            if len(regDict) == len(projList)+extra:
                 retList.append(regDict)
 
         agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
