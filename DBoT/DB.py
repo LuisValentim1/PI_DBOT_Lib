@@ -31,13 +31,16 @@ class DB:
 
                 
     # Função de inserção de um json
-    def insertInto(self, flatJson, pk_id):           # Os parametros são o json e a pk que será passada pela API
+    def insertInto(self, flatJson, pk_id):
+
+        #Se existe um timestamp associar se não criar um 
         timestampNow = ""
         if "timeStamp" in flatJson:
             timestampNow = flatJson["timeStamp"]
         else:
             timestampNow = str(datetime.now())
 
+        # Para cada parametro inserir na tabela do atributo e ambas as tabelas de metadados 
         for key in flatJson:
             keyLower = key.lower()
             if not self.checkTable(keyLower):
@@ -56,8 +59,9 @@ class DB:
 
         self.session.execute("insert into sensors (sensor_id, user, pk) values('" + sensor_id + "', '" + user +"', '" + pk_id + "')")
 
-    #Subqueries de apoio a querying complexo // Queries nas tabelas secundárias que permitem encontrar os pks.
+    #Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
     def subQuery(self, pk, param, condition):
+
         retList = []                                                            # Lista de pks a retornar
         condition = condition[0] + "'" + condition[1:len(condition)] + "'"      # Alterar a formatação da condição para ser compativel com cql
         pk_ret = None
@@ -73,19 +77,18 @@ class DB:
 
     # Função de querying por utilizador
     def queryPerUser(self, user, projList, paramConditionDictionary):
+        possiblePkLists = []                                            # Lista de pks que passaram todas as condições
+        userPks = [row[0] for row in self.session.execute("select pk from sensors where user = '" + user + "'")]
+        atributes = list(paramConditionDictionary.keys()) + projList    # Atributos associados à query
+        atributes = list(dict.fromkeys(atributes))
+        atributePkDict = {}                                             # Dicionário atributo : lista de pks
 
-        userPkQuery = self.session.execute("select pk from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
-        
-        possiblePkLists = []
-        userPks = [row[0] for row in userPkQuery]
-        atributes = list(paramConditionDictionary.keys()) + projList
-        atributes = list(set(atributes))
-        atributePkDict = {}
-
+        # Para cada atributo criar um dicionário de pks associados a esse atributo 
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
             atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in userPks]
 
+        # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
@@ -94,21 +97,29 @@ class DB:
         
         if None in possiblePkLists:
             possiblePkLists.remove(None)
-
+    	
+        # Formar os resultados
         retList = []
-
-        for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
+        for pk in possiblePkLists:                                                     
+            extra = 0
             regDict = {}
+            if "timestamp" not in projList:
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + self.agrHandler(projList[0]) + "' and pk='" + pk + "'")
+                if timestamp.one() is not None:
+                    regDict["timestamp"] = timestamp.one()[0]
+                    extra = 1
             for par in projList:
+                handledPar = self.agrHandler(par)
                 strCommand = "select "
-                strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
+                strCommand = strCommand + self.agrHandler(par) + " from " + handledPar + "_table where pk = '" + pk + "'"
                 result = self.session.execute(strCommand)
-                if not result == None:
-                    regDict[self.agrHandler(par)] = result.one()[0]
-            if len(regDict) == len(projList):
+                if result.one() is not None:
+                    regDict[handledPar] = result.one()[0]
+            if len(regDict) == len(projList)+extra:
                 retList.append(regDict)
 
-        agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
+        # Verificar se existem agregações e selecionar a correta
+        agrFlag = self.agrCheck(projList)                                                
         if agrFlag == "AVG:":
             retList = self.averageHandler(retList, self.agrHandler(projList[0]))
         elif agrFlag == "MIN:":
@@ -124,23 +135,22 @@ class DB:
 
         return retList
 
+    # Função de querying por utilizador dentro de uma range de valores de tempo
     def rangeQueryPerUser(self, user, projList, paramConditionDictionary, dateStart, dateFinish):
+        possiblePkLists = []                                                                                            # Lista de pks que passaram todas as condições
+        userPks = [row[0] for row in self.session.execute("select pk from sensors where user = '" + user + "'")]  
+        atributes = list(paramConditionDictionary.keys()) + projList                                                    # Atributos associados à query
+        atributes = list(dict.fromkeys(atributes))
+        atributePkDict = {}                                                                                             # Dicionário atributo : lista de pks
 
-        userPkQuery = self.session.execute("select pk from sensors where user = '" + user + "'")    # Procurar para um utilizador as tabelas e pks associados
-        
-        possiblePkLists = []
-        userPks = [row[0] for row in userPkQuery]  
-        atributes = list(paramConditionDictionary.keys()) + projList
-        atributes = list(set(atributes))
-        atributePkDict = {}
-
+        # Para cada atributo criar um dicionário de pks associados a esse atributo 
         for atribute in atributes:
             atributePkQueryStart = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp > '" + dateStart +"'")
             atributePkQueryFinish = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp < '" + dateFinish +"'")
             atributePkQuery = set([row[0] for row in atributePkQueryStart]).intersection([row[0] for row in atributePkQueryFinish])
             atributePkDict[atribute] = [pk for pk in atributePkQuery if pk in userPks]
 
-
+        # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
@@ -150,25 +160,28 @@ class DB:
         if None in possiblePkLists:
             possiblePkLists.remove(None)
 
+        # Formar os resultados
         retList = []
-
-        for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
+        for pk in possiblePkLists:                                                     
             extra = 0
             regDict = {}
             if "timestamp" not in projList:
-                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + projList[0] + "' and pk='" + pk + "'")
-                regDict["timestamp"] = timestamp.one()[0]
-                extra = 1
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + self.agrHandler(projList[0]) + "' and pk='" + pk + "'")
+                if timestamp.one() is not None:
+                    regDict["timestamp"] = timestamp.one()[0]
+                    extra = 1
             for par in projList:
+                handledPar = self.agrHandler(par)
                 strCommand = "select "
-                strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
+                strCommand = strCommand + self.agrHandler(par) + " from " + handledPar + "_table where pk = '" + pk + "'"
                 result = self.session.execute(strCommand)
-                if not result == None:
-                    regDict[self.agrHandler(par)] = result.one()[0]
+                if result.one() is not None:
+                    regDict[handledPar] = result.one()[0]
             if len(regDict) == len(projList)+extra:
                 retList.append(regDict)
 
-        agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
+        # Verificar se existem agregações e selecionar a correta 
+        agrFlag = self.agrCheck(projList)                                               
         if agrFlag == "AVG:":
             retList = self.averageHandler(retList, self.agrHandler(projList[0]))
         elif agrFlag == "MIN:":
@@ -185,20 +198,19 @@ class DB:
         return retList
 
     # Função de querying por sensor
-    def queryPerSensor(self, user, sensor, projList, paramConditionDictionary):
+    def queryPerSensor(self, user, sensor, projList, paramConditionDictionary):                          
+        possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
+        sensorPks = [row[0] for row in self.session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]  
+        atributes = list(paramConditionDictionary.keys()) + projList                                                                                    # Atributos associados à query
+        atributes = list(dict.fromkeys(atributes))
+        atributePkDict = {}                                                                                                                             # Dicionário atributo : lista de pks
 
-        sensorPkQuery = self.session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")   # Procurar para um utilizador as tabelas e pks associados
-                                                     
-        possiblePkLists = []
-        sensorPks = [row[0] for row in sensorPkQuery]
-        atributes = list(paramConditionDictionary.keys()) + projList
-        atributes = list(set(atributes))
-        atributePkDict = {}
-
+        # Para cada atributo criar um dicionário de pks associados a esse atributo 
         for atribute in atributes:
             atributePkQuery = self.session.execute("select pk from metadata where atribute='" + atribute + "'")
             atributePkDict[atribute] = [row[0] for row in atributePkQuery if row[0] in sensorPks]
 
+        # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
@@ -208,21 +220,28 @@ class DB:
         if None in possiblePkLists:
             possiblePkLists.remove(None)
 
+        # Formar os resultados
         retList = []
+        for pk in possiblePkLists:                                                     
+            extra = 0
+            regDict = {}
+            if "timestamp" not in projList:
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + self.agrHandler(projList[0]) + "' and pk='" + pk + "'")
+                if timestamp.one() is not None:
+                    regDict["timestamp"] = timestamp.one()[0]
+                    extra = 1
+            for par in projList:
+                handledPar = self.agrHandler(par)
+                strCommand = "select "
+                strCommand = strCommand + self.agrHandler(par) + " from " + handledPar + "_table where pk = '" + pk + "'"
+                result = self.session.execute(strCommand)
+                if result.one() is not None:
+                    regDict[handledPar] = result.one()[0]
+            if len(regDict) == len(projList)+extra:
+                retList.append(regDict)
 
-        for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
-            if pk in sensorPks:                                                       # Se este é um dos pks do utilizador executar a query nessa tabela por esse pk
-                regDict = {}
-                for par in projList:
-                    strCommand = "select "   
-                    strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
-                    result = self.session.execute(strCommand)
-                    if not result == None:
-                        regDict[self.agrHandler(par)] = result.one()[0]
-                if len(regDict) == len(projList):
-                    retList.append(regDict)
-
-        agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
+        # Verificar se existem agregações e selecionar a correta 
+        agrFlag = self.agrCheck(projList)                                            
         if agrFlag == "AVG:":
             retList = self.averageHandler(retList, self.agrHandler(projList[0]))
         elif agrFlag == "MIN:":
@@ -238,22 +257,22 @@ class DB:
 
         return retList
 
+    # Função de querying por sensor dentro de uma range de valores de tempo
     def rangeQueryPerSensor(self, user, sensor, projList, paramConditionDictionary, dateStart, dateFinish):
+        possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
+        sensorPks = [row[0] for row in self.session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]
+        atributes = list(paramConditionDictionary.keys()) + projList                                                                                    # Atributos associados à query
+        atributes = list(dict.fromkeys(atributes))
+        atributePkDict = {}                                                                                                                             # Dicionário atributo : lista de pks
 
-        sensorPkQuery = self.session.execute("select pkList from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")   # Procurar para um utilizador as tabelas e pks associados
-                                                     
-        possiblePkLists = []
-        sensorPks = [row[0] for row in sensorPkQuery]
-        atributes = list(paramConditionDictionary.keys()) + projList
-        atributes = list(set(atributes))
-        atributePkDict = {}
-
+        # Para cada atributo criar um dicionário de pks associados a esse atributo 
         for atribute in atributes:
             atributePkQueryStart = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp > '" + dateStart +"'")
             atributePkQueryFinish = self.session.execute("select pk from metadata where atribute='" + atribute + "' and timestamp < '" + dateFinish +"'")
             atributePkQuery = set([row[0] for row in atributePkQueryStart]).intersection([row[0] for row in atributePkQueryFinish])
-            atributePkDict[atribute] = [pk for pk in atributePkQuery if pk in userPks]
+            atributePkDict[atribute] = [pk for pk in atributePkQuery if pk in sensorPks]
 
+        # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
         for key in paramConditionDictionary:
             keyPkList = [self.subQuery(pk, key, paramConditionDictionary[key]) for pk in atributePkDict[key]]
             possiblePkLists.append(keyPkList)
@@ -263,21 +282,28 @@ class DB:
         if None in possiblePkLists:
             possiblePkLists.remove(None)
 
+        # Formar os resultados
         retList = []
+        for pk in possiblePkLists:                                                     
+            extra = 0
+            regDict = {}
+            if "timestamp" not in projList:
+                timestamp = self.session.execute("select timestamp from metadata_reverse where atribute='" + self.agrHandler(projList[0]) + "' and pk='" + pk + "'")
+                if timestamp.one() is not None:
+                    regDict["timestamp"] = timestamp.one()[0]
+                    extra = 1
+            for par in projList:
+                handledPar = self.agrHandler(par)
+                strCommand = "select "
+                strCommand = strCommand + self.agrHandler(par) + " from " + handledPar + "_table where pk = '" + pk + "'"
+                result = self.session.execute(strCommand)
+                if result.one() is not None:
+                    regDict[handledPar] = result.one()[0]
+            if len(regDict) == len(projList)+extra:
+                retList.append(regDict)
 
-        for pk in possiblePkLists:                                                      # Para cada pk possivel encontrado nas subqueries
-            if pk in sensorPks:                                                       # Se este é um dos pks do utilizador executar a query nessa tabela por esse pk
-                regDict = {}
-                for par in projList:
-                    strCommand = "select "   
-                    strCommand = strCommand + self.agrHandler(par) + " from " + self.agrHandler(par) + "_table where pk = '" + pk + "'"
-                    result = self.session.execute(strCommand)
-                    if not result == None:
-                        regDict[self.agrHandler(par)] = result.one()[0]
-                if len(regDict) == len(projList):
-                    retList.append(regDict)
-
-        agrFlag = self.agrCheck(projList)                                               # Verificar se existem agregações e selecionar a correta 
+        # Verificar se existem agregações e selecionar a correta 
+        agrFlag = self.agrCheck(projList)                                               
         if agrFlag == "AVG:":
             retList = self.averageHandler(retList, self.agrHandler(projList[0]))
         elif agrFlag == "MIN:":
@@ -303,15 +329,16 @@ class DB:
     # Função para verificar se existem agregações e retirar a agregação
     def agrCheck(self, projectionList):
         ret = None
+        agr = projectionList[0][0:4]
         agrList = ["AVG:", "MIN:", "MAX:", "SUM:", "CNT:"]
 
-        for atribute in projectionList:
-            if atribute[0:4] in agrList:
-                if len(projectionList) == 1:
-                    ret = atribute[0:4]
-                else:
-                    print("ERRO! Numero de parametros de visualização impróprio para agregação")
-                    ret = "ERROR"
+        if agr in agrList:
+            if len(projectionList) == 1:
+                ret = agr
+            else:
+                print("ERRO! Numero de parametros de visualização impróprio para agregação")
+                ret = "ERROR"
+
         return ret
 
     # Função para retirar a média dos resultados
@@ -368,9 +395,9 @@ class DB:
     def countHandler(self, returnList, atribute):
         return [{atribute: str(len(returnList)) }]
 
+    # Função para retirar todos os resultados de um certo atributo
     def getAllValuesOn(self, atribute):
         valueRows = self.session.execute("Select " + atribute + " from " + atribute + "_table")
-
         values = [row[0] for row in valueRows]
 
         return values
@@ -378,32 +405,27 @@ class DB:
     # Função para mostrar os utilizadores existentes na base de dados
     def getUsers(self):
         userRows = self.session.execute("Select * from sensors")
-        users = []
-        for row in userRows:
-            users.append(row[0])
-        
+        users = [row[0] for row in userRows]
         users = list(dict.fromkeys(users))
 
         return users
 
+    # Função para retirar todos os sensores de um utilizador
     def getSensors(self, user):
         userRows = self.session.execute("Select * from sensors where user = '" + user + "'")
-
-        sensors = [row[1] for row in userRows]
+        sensors = list(dict.fromkeys([row[1] for row in userRows]))
 
         return sensors
 
+    # Função para retirar todos os atributos existentes
     def getAtributes(self):
         atList = []
         atributeRows = self.session.execute("Select atribute from metadata")
-        for row in atributeRows:
-            if row[0] not in atList:
-                atList.append(row[0])
+        atList = list(dict.fromkeys([row[0] for row in atributeRows if row[0] not in atList]))
         return atList
     
-    
     # Função para printar resultados
-    def printResults(resultList):
+    def printResults(self, resultList):
         for Dict in resultList:
             printStr = ""
             for key in Dict:
