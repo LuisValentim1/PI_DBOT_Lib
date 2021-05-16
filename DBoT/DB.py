@@ -26,13 +26,15 @@ class DB:
         return False                                                            # Caso contrário retornar False
 
     # Função para criar tabelas
-    def createTable(self, atribute):
-        self.session.execute("create table " + atribute + "_table(pk text, " + atribute + " text, PRIMARY KEY( pk, " + atribute + "))")
+    def createTable(self, atribute, flag):
+        if flag==1:
+            self.session.execute("create table " + atribute + "_table(pk text, " + atribute + " int, PRIMARY KEY( pk, " + atribute + "))")
+        else:
+            self.session.execute("create table " + atribute + "_table(pk text, " + atribute + " text, PRIMARY KEY( pk, " + atribute + "))")
 
                 
     # Função de inserção de um json
     def insertInto(self, flatJson, pk_id):
-
         #Se existe um timestamp associar se não criar um 
         timestampNow = ""
         if "timeStamp" in flatJson:
@@ -42,10 +44,16 @@ class DB:
 
         # Para cada parametro inserir na tabela do atributo e ambas as tabelas de metadados 
         for key in flatJson:
+            flag = 0
             keyLower = key.lower()
+            if flatJson[key].isdigit():
+                    flag = 1
             if not self.checkTable(keyLower):
-                self.createTable(key)
-            self.session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', '" + flatJson[key] + "')")
+                self.createTable(key, flag)
+            if flag == 1:
+                self.session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', " + flatJson[key] + ")")
+            else:
+                self.session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', '" + flatJson[key] + "')")
             self.session.execute("insert into metadata(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
             self.session.execute("insert into metadata_reverse(atribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
 
@@ -63,7 +71,10 @@ class DB:
     def subQuery(self, pk, param, condition):
 
         retList = []                                                            # Lista de pks a retornar
-        condition = condition[0] + "'" + condition[1:len(condition)] + "'"      # Alterar a formatação da condição para ser compativel com cql
+
+        if not condition[1:len(condition)].isdigit():
+            condition = condition[0] + "'" + condition[1:len(condition)] + "'"      # Alterar a formatação da condição para ser compativel com cql
+        
         pk_ret = None
 
         try:
@@ -343,11 +354,6 @@ class DB:
 
     # Função para retirar a média dos resultados
     def averageHandler(self, returnList, atribute):
-
-        if not returnList[0][atribute].isnumeric():
-            print("Invalid parameter for average")
-            return {}
-        
         valueList = [int(Dict[atribute]) for Dict in returnList]
         ret = sum(valueList) / len(valueList)
 
@@ -355,10 +361,6 @@ class DB:
 
     # Função para retirar o minimo dos resultados
     def minimumHandler(self, returnList, atribute):
-        if not returnList[0][atribute].isnumeric():
-            print("Invalid parameter for average")
-            return {}
-        
         ret = int(returnList[0][atribute])
         for Dict in returnList[1:len(returnList)]:
             if  ret > int(Dict[atribute]):
@@ -368,10 +370,6 @@ class DB:
 
     # Função para retirar o maximo dos resultados
     def maximumHandler(self, returnList, atribute):
-        if not returnList[0][atribute].isnumeric():
-            print("Invalid parameter for average")
-            return {}
-                
         ret = int(returnList[0][atribute])
         for Dict in returnList[1:len(returnList)]:
             if  ret < int(Dict[atribute]):
@@ -381,10 +379,6 @@ class DB:
 
     # Função para retirar a soma dos resultados
     def sumHandler(self, returnList, atribute):
-        if not returnList[0][atribute].isnumeric():
-            print("Invalid parameter for average")
-            return {}
-
         valueList = [int(Dict[atribute]) for Dict in returnList]
         
         ret = sum(valueList)
@@ -429,5 +423,5 @@ class DB:
         for Dict in resultList:
             printStr = ""
             for key in Dict:
-                printStr = printStr + key + " - " + Dict[key] + "   "
+                printStr = printStr + key + " - " + str(Dict[key]) + "   "
             print(printStr)
