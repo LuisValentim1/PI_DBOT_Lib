@@ -31,11 +31,18 @@ def initializa(user, passW):
     session.execute("create table metadata_reverse(attribute text, pk text, timestamp text, PRIMARY KEY(attribute, pk, timestamp) )")
     session.execute("create table sensors(sensor_id text, user text, pk text, attributes list<text>, PRIMARY KEY(user, sensor_id, pk) )")
 
+def sessionLogin(user, passW):
+    auth_provider = PlainTextAuthProvider(
+        username=user, password=passW)
+    cluster = Cluster(auth_provider=auth_provider)
+
+    session = cluster.connect('db_'+user)
+    ret = [user, session]
+    return ret
 
 # Função para verificar se já existe tabela para um dado atributo
-def checkTable(sess, attribute):
-    session = sess
-    
+def checkTable(session, attribute):
+
     attributeQuery = session.execute("SELECT attribute FROM metadata")   # Verifiar os atributos existentes na tabela de metadados
     attributeList = [row[0] for row in attributeQuery]
 
@@ -44,8 +51,8 @@ def checkTable(sess, attribute):
     return False                                                            # Caso contrário retornar False
 
 # Função para criar tabelas
-def createTable(sess, attribute, flag):
-    session = sess
+def createTable(session, attribute, flag):
+
     if flag==1:
         session.execute("create table " + attribute + "_table(pk text, " + attribute + " int, PRIMARY KEY( pk, " + attribute + "))")
     else:
@@ -53,9 +60,7 @@ def createTable(sess, attribute, flag):
 
             
 # Função de inserção de um json
-def insertInto(sess, flatJson, pk_id):
-
-    session = sess
+def insertInto(session, flatJson, pk_id):
 
     #Se existe um timestamp associar se não criar um 
     timestampNow = ""
@@ -70,8 +75,8 @@ def insertInto(sess, flatJson, pk_id):
         keyLower = key.lower()
         if flatJson[key].isdigit():
                 flag = 1
-        if not checkTable(sess, keyLower):
-            createTable(sess, key, flag)
+        if not checkTable(session, keyLower):
+            createTable(session, key, flag)
         if flag == 1:
             session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', " + flatJson[key] + ")")
         else:
@@ -80,13 +85,10 @@ def insertInto(sess, flatJson, pk_id):
         session.execute("insert into metadata_reverse(attribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
 
 #Função de inserção num sensor
-def insertIntoSensor(user, passW, flatJson, sensor_id):
+def insertIntoSensor(sessCache, flatJson, sensor_id):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    session = sessCache[1]
+    user = sessCache[0]
 
     sensor_id = str(sensor_id)
     pk_id = str(uuid.uuid1())
@@ -98,9 +100,7 @@ def insertIntoSensor(user, passW, flatJson, sensor_id):
     session.execute("insert into sensors (sensor_id, user, pk, attributes) values('" + sensor_id + "', '" + user +"', '" + pk_id + "', " + str(keys) + ")")
 
 #Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
-def subQuery(sess, pk, param, condition):
-
-    session = sess
+def subQuery(session, pk, param, condition):
 
     retList = []                                                            # Lista de pks a retornar
 
@@ -119,13 +119,10 @@ def subQuery(sess, pk, param, condition):
     return pk_ret
 
 # Função de querying por utilizador
-def queryPerUser(user, passW, projList, paramConditionDictionary):
+def queryPerUser(sessCache, projList, paramConditionDictionary):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    user = sessCache[0]
+    session = sessCache[1]
 
     possiblePkLists = []                                            # Lista de pks que passaram todas as condições
     userPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "'")]
@@ -135,6 +132,7 @@ def queryPerUser(user, passW, projList, paramConditionDictionary):
 
     # Para cada atributo criar um dicionário de pks associados a esse atributo 
     for attribute in attributes:
+        attribute = agrHandler(attribute)
         attributePkQuery = session.execute("select pk from metadata where attribute='" + attribute + "'")
         attributePkDict[attribute] = [row[0] for row in attributePkQuery if row[0] in userPks]
 
@@ -142,9 +140,8 @@ def queryPerUser(user, passW, projList, paramConditionDictionary):
     for key in paramConditionDictionary:
         keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
         possiblePkLists.append(keyPkList)
-
     possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
-    
+
     if None in possiblePkLists:
         possiblePkLists.remove(None)
     
@@ -186,13 +183,10 @@ def queryPerUser(user, passW, projList, paramConditionDictionary):
     return retList
 
 # Função de querying por utilizador dentro de uma range de valores de tempo
-def rangeQueryPerUser(user, passW, projList, paramConditionDictionary, dateStart, dateFinish):
+def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, dateFinish):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    user = sessCache[0]
+    session = sessCache[1]
 
     possiblePkLists = []                                                                                            # Lista de pks que passaram todas as condições
     userPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "'")]  
@@ -202,6 +196,7 @@ def rangeQueryPerUser(user, passW, projList, paramConditionDictionary, dateStart
 
     # Para cada atributo criar um dicionário de pks associados a esse atributo 
     for attribute in attributes:
+        attribute = agrHandler(attribute)
         attributePkQueryStart = session.execute("select pk from metadata where attribute='" + attribute + "' and timestamp > '" + dateStart +"'")
         attributePkQueryFinish = session.execute("select pk from metadata where attribute='" + attribute + "' and timestamp < '" + dateFinish +"'")
         attributePkQuery = set([row[0] for row in attributePkQueryStart]).intersection([row[0] for row in attributePkQueryFinish])
@@ -255,13 +250,10 @@ def rangeQueryPerUser(user, passW, projList, paramConditionDictionary, dateStart
     return retList
 
 # Função de querying por sensor
-def queryPerSensor( user, passW, sensor, projList, paramConditionDictionary):
+def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    user = sessCache[0]
+    session = sessCache[1]
 
     possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
     sensorPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]  
@@ -271,6 +263,7 @@ def queryPerSensor( user, passW, sensor, projList, paramConditionDictionary):
 
     # Para cada atributo criar um dicionário de pks associados a esse atributo 
     for attribute in attributes:
+        attribute = agrHandler(attribute)
         attributePkQuery = session.execute("select pk from metadata where attribute='" + attribute + "'")
         attributePkDict[attribute] = [row[0] for row in attributePkQuery if row[0] in sensorPks]
 
@@ -322,13 +315,10 @@ def queryPerSensor( user, passW, sensor, projList, paramConditionDictionary):
     return retList
 
 # Função de querying por sensor dentro de uma range de valores de tempo
-def rangeQueryPerSensor( user, passW, sensor, projList, paramConditionDictionary, dateStart, dateFinish):
-
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+def rangeQueryPerSensor(sessCache, sensor, projList, paramConditionDictionary, dateStart, dateFinish):
+    
+    user = sessCache[0]
+    session = sessCache[1]
 
     possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
     sensorPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]
@@ -338,6 +328,7 @@ def rangeQueryPerSensor( user, passW, sensor, projList, paramConditionDictionary
 
     # Para cada atributo criar um dicionário de pks associados a esse atributo 
     for attribute in attributes:
+        attribute = agrHandler(attribute)
         attributePkQueryStart = session.execute("select pk from metadata where attribute='" + attribute + "' and timestamp > '" + dateStart +"'")
         attributePkQueryFinish = session.execute("select pk from metadata where attribute='" + attribute + "' and timestamp < '" + dateFinish +"'")
         attributePkQuery = set([row[0] for row in attributePkQueryStart]).intersection([row[0] for row in attributePkQueryFinish])
@@ -450,13 +441,9 @@ def countHandler( returnList, attribute):
     return [{attribute: str(len(returnList)) }]
 
 # Função para retirar todos os resultados de um certo atributo
-def getAllValuesOn(user, passW, attribute):
-    
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
+def getAllValuesOn(sessCache, attribute):
 
-    session = cluster.connect('db_'+user)
+    session = sessCache[1]
 
     valueRows = session.execute("Select " + attribute + " from " + attribute + "_table")
     values = [row[0] for row in valueRows]
@@ -464,13 +451,9 @@ def getAllValuesOn(user, passW, attribute):
     return values
 
 # Função para mostrar os utilizadores existentes na base de dados
-def getUsers(user, passW):
+def getUsers(sessCache):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    session = sessCache[1]
 
     userRows = session.execute("Select * from sensors")
     users = [row[0] for row in userRows]
@@ -479,26 +462,18 @@ def getUsers(user, passW):
     return users
 
 # Função para retirar todos os sensores de um utilizador
-def getSensors(user, passW):
-
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+def getSensors(sessCache):
+    
+    user = sessCache[0]
+    session = sessCache[1]
 
     userRows = session.execute("Select * from sensors where user = '" + user + "'")
     sensors = list(dict.fromkeys([row[1] for row in userRows]))
 
     return sensors
 
-def getAllSensorsAttributes(user, passW):
-
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+def getAllSensorsAttributes(sessCache):
+    session = sessCache[1]
 
     sensorAttributes = [[row[0], row[1], row[2]] for row in session.execute("select user, sensor_id, attributes from sensors")]
     sensorAttributesUnique = []
@@ -507,13 +482,10 @@ def getAllSensorsAttributes(user, passW):
             sensorAttributesUnique.append(sensor)
     return sensorAttributesUnique
 
-def getSensorAttributes(user, passW, sensor_id):
-
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+def getSensorAttributes(sessCache, sensor_id):
+    
+    user = sessCache[0]
+    session = sessCache[1]
 
     sensorAttributes = [[row[0], row[1], row[2]] for row in session.execute("select user, sensor_id, attributes from sensors where user = '" + user + "' and sensor_id = '" + str(sensor_id) + "'")]
     sensorAttributesUnique = []
@@ -523,13 +495,9 @@ def getSensorAttributes(user, passW, sensor_id):
     return sensorAttributesUnique
 
 # Função para retirar todos os atributos existentes
-def getAttributes(user, passW):
+def getAttributes(sessCache):
 
-    auth_provider = PlainTextAuthProvider(
-        username=user, password=passW)
-    cluster = Cluster(auth_provider=auth_provider)
-
-    session = cluster.connect('db_'+user)
+    session = sessCache[1]
 
     atList = []
     atributeRows = session.execute("Select attribute from metadata")
