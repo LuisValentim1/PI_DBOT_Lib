@@ -10,13 +10,10 @@ def register(user, passW):
 
     session = cluster.connect('db')
 
-    try:
-        session.execute("create role " + user + " with password='" + passW + "' and login=true")
-        session.execute("create keyspace db_" + user + " with replication = {'class':'SimpleStrategy', 'replication_factor' : 1}")
-        session.execute("grant all on keyspace db_" + user + " to " + user)
-        initializa(user,passW)
-    except:
-        pass
+    session.execute("create role " + user + " with password='" + passW + "' and login=true")
+    session.execute("create keyspace db_" + user + " with replication = {'class':'SimpleStrategy', 'replication_factor' : 1}")
+    session.execute("grant all on keyspace db_" + user + " to " + user)
+    initializa(user,passW)
     
 
 def initializa(user, passW):
