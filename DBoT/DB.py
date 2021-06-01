@@ -3,6 +3,7 @@ from cassandra.auth import PlainTextAuthProvider
 import uuid
 from datetime import datetime
 
+# Função que regista um utilizador, criar o seu keyspace pessoal e a role de forma a podermos utilizar a autenticação de cassandra 
 def register(user, passW):
     auth_provider = PlainTextAuthProvider(
         username='cassandra', password='cassandra')
@@ -15,7 +16,7 @@ def register(user, passW):
     session.execute("grant all on keyspace db_" + user + " to " + user)
     initializa(user,passW)
     
-
+# Função para criar as tabelas de suporte necessárias na base de dados quando um utilizador se regista pela primeira vez 
 def initializa(user, passW):
 
     auth_provider = PlainTextAuthProvider(
@@ -28,6 +29,7 @@ def initializa(user, passW):
     session.execute("create table metadata_reverse(attribute text, pk text, timestamp text, PRIMARY KEY(attribute, pk, timestamp) )")
     session.execute("create table sensors(sensor_id text, user text, pk text, attributes list<text>, PRIMARY KEY(user, sensor_id, pk) )")
 
+# Função de login de um utilizador, retorna o utilizador e a sessão 
 def sessionLogin(user, passW):
     auth_provider = PlainTextAuthProvider(
         username=user, password=passW)
@@ -40,18 +42,15 @@ def sessionLogin(user, passW):
 # Função para verificar se já existe tabela para um dado atributo
 def checkTable(session, attribute):
 
-    attributeQuery = session.execute("SELECT attribute FROM metadata")   # Verifiar os atributos existentes na tabela de metadados
-    attributeList = [row[0] for row in attributeQuery]
-
-    if attribute in attributeList:                                            # Se o atributo a testar está na tabela de metadados retornar True
+    if attribute in [row[0] for row in session.execute("SELECT attribute FROM metadata") ] :
         return True 
-    return False                                                            # Caso contrário retornar False
+    return False                                                      
 
-# Função para criar tabelas
+# Função para criar tabelas  //  flag representa se a tabela a criar é para um atributo numérico ou de texto
 def createTable(session, attribute, flag):
 
     if flag==1:
-        session.execute("create table " + attribute + "_table(pk text, " + attribute + " int, PRIMARY KEY( pk, " + attribute + "))")
+        session.execute("create table " + attribute + "_table(pk text, " + attribute + " double, PRIMARY KEY( pk, " + attribute + "))")
     else:
         session.execute("create table " + attribute + "_table(pk text, " + attribute + " text, PRIMARY KEY( pk, " + attribute + "))")
 
@@ -59,7 +58,7 @@ def createTable(session, attribute, flag):
 # Função de inserção de um json
 def insertInto(session, flatJson, pk_id):
 
-    #Se existe um timestamp associar se não criar um 
+    # Se existe um timestamp associar se não criar um 
     timestampNow = ""
     if "timeStamp" in flatJson:
         timestampNow = flatJson["timeStamp"]
@@ -81,7 +80,7 @@ def insertInto(session, flatJson, pk_id):
         session.execute("insert into metadata(attribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
         session.execute("insert into metadata_reverse(attribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
 
-#Função de inserção num sensor
+# Função de inserção num sensor
 def insertIntoSensor(sessCache, flatJson, sensor_id):
 
     session = sessCache[1]
@@ -90,19 +89,19 @@ def insertIntoSensor(sessCache, flatJson, sensor_id):
     sensor_id = str(sensor_id)
     pk_id = str(uuid.uuid1())
 
-    insertInto(session, flatJson, pk_id)                                    # Inserir o registo com a função principal de inserção
+    insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
 
     keys = [key.lower() for key in flatJson.keys()]
 
     session.execute("insert into sensors (sensor_id, user, pk, attributes) values('" + sensor_id + "', '" + user +"', '" + pk_id + "', " + str(keys) + ")")
 
-#Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
+# Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
 def subQuery(session, pk, param, condition):
 
     retList = []                                                            # Lista de pks a retornar
 
     if not condition[1:len(condition)].isdigit():
-        condition = condition[0] + "'" + condition[1:len(condition)] + "'"      # Alterar a formatação da condição para ser compativel com cql
+        condition = condition[0] + "'" + condition[1:len(condition)] + "'"  # Alterar a formatação da condição para ser compativel com cql
     
     pk_ret = None
 
@@ -137,7 +136,9 @@ def queryPerUser(sessCache, projList, paramConditionDictionary):
     for key in paramConditionDictionary:
         keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
         possiblePkLists.append(keyPkList)
-    possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+
+    if len(possiblePkLists):
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
 
     if None in possiblePkLists:
         possiblePkLists.remove(None)
@@ -204,7 +205,8 @@ def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, 
         keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
         possiblePkLists.append(keyPkList)
 
-    possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+    if len(possiblePkLists):
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
     
     if None in possiblePkLists:
         possiblePkLists.remove(None)
@@ -269,7 +271,8 @@ def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
         keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
         possiblePkLists.append(keyPkList)
 
-    possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+    if len(possiblePkLists):
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
     
     if None in possiblePkLists:
         possiblePkLists.remove(None)
@@ -336,7 +339,8 @@ def rangeQueryPerSensor(sessCache, sensor, projList, paramConditionDictionary, d
         keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
         possiblePkLists.append(keyPkList)
 
-    possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
+    if len(possiblePkLists):
+        possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
     
     if None in possiblePkLists:
         possiblePkLists.remove(None)
@@ -469,6 +473,7 @@ def getSensors(sessCache):
 
     return sensors
 
+# Funºão para obter todos os atributos existentes em todos os sensores no formato [user, sensor, [atributes]]
 def getAllSensorsAttributes(sessCache):
     session = sessCache[1]
 
