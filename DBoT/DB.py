@@ -132,10 +132,15 @@ def queryPerUser(sessCache, projList, paramConditionDictionary):
         attributePkQuery = session.execute("select pk from metadata where attribute='" + attribute + "'")
         attributePkDict[attribute] = [row[0] for row in attributePkQuery if row[0] in userPks]
 
+
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    for key in paramConditionDictionary:
-        keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
-        possiblePkLists.append(keyPkList)
+    if paramConditionDictionary != {}:
+        for key in paramConditionDictionary:
+            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+            possiblePkLists.append(keyPkList)
+    else:
+        for key in attributePkDict:
+            possiblePkLists.append(attributePkDict[key])
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -201,10 +206,14 @@ def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, 
         attributePkDict[attribute] = [pk for pk in attributePkQuery if pk in userPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    for key in paramConditionDictionary:
-        keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
-        possiblePkLists.append(keyPkList)
-
+    if paramConditionDictionary != {}:
+        for key in paramConditionDictionary:
+            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+            possiblePkLists.append(keyPkList)
+    else:
+        for key in attributePkDict:
+            possiblePkLists.append(attributePkDict[key])
+            
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
     
@@ -267,9 +276,13 @@ def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
         attributePkDict[attribute] = [row[0] for row in attributePkQuery if row[0] in sensorPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    for key in paramConditionDictionary:
-        keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
-        possiblePkLists.append(keyPkList)
+    if paramConditionDictionary != {}:
+        for key in paramConditionDictionary:
+            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+            possiblePkLists.append(keyPkList)
+    else:
+        for key in attributePkDict:
+            possiblePkLists.append(attributePkDict[key])
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -335,9 +348,13 @@ def rangeQueryPerSensor(sessCache, sensor, projList, paramConditionDictionary, d
         attributePkDict[attribute] = [pk for pk in attributePkQuery if pk in sensorPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    for key in paramConditionDictionary:
-        keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
-        possiblePkLists.append(keyPkList)
+    if paramConditionDictionary != {}:
+        for key in paramConditionDictionary:
+            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+            possiblePkLists.append(keyPkList)
+    else:
+        for key in attributePkDict:
+            possiblePkLists.append(attributePkDict[key])
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
