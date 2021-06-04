@@ -100,8 +100,15 @@ def subQuery(session, pk, param, condition):
 
     retList = []                                                            # Lista de pks a retornar
 
-    if not condition[1:len(condition)].isdigit():
-        condition = condition[0] + "'" + condition[1:len(condition)] + "'"  # Alterar a formatação da condição para ser compativel com cql
+    i=0
+    for pos in condition:
+        if pos.isdigit():
+            break
+        i = i+1
+
+    if not condition[i:len(condition)].isdigit():
+        condition = condition[0:i] + "'" + condition[i:len(condition)] + "'"
+    print(condition)
     
     pk_ret = None
 
