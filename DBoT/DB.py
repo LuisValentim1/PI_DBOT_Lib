@@ -96,19 +96,14 @@ def insertIntoSensor(sessCache, flatJson, sensor_id):
     session.execute("insert into sensors (sensor_id, user, pk, attributes) values('" + sensor_id + "', '" + user +"', '" + pk_id + "', " + str(keys) + ")")
 
 # Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
-def subQuery(session, pk, param, condition):
+def subQuery(session, pk, param, condition, value):
 
     retList = []                                                            # Lista de pks a retornar
 
-    i=0
-    for pos in condition:
-        if pos.isdigit():
-            break
-        i = i+1
-
-    if not condition[i:len(condition)].isdigit():
-        condition = condition[0:i] + "'" + condition[i:len(condition)] + "'"
-    print(condition)
+    if not value.isdigit():
+        condition = condition + "'" + value + "'"
+    else:
+        condition = condition + str(value) 
     
     pk_ret = None
 
@@ -122,16 +117,18 @@ def subQuery(session, pk, param, condition):
     return pk_ret
 
 # Função de querying por utilizador
-def queryPerUser(sessCache, projList, paramConditionDictionary):
+def queryPerUser(sessCache, projList, conditionArray):
 
     user = sessCache[0]
     session = sessCache[1]
 
     possiblePkLists = []                                            # Lista de pks que passaram todas as condições
     userPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "'")]
-    attributes = list(paramConditionDictionary.keys()) + projList    # Atributos associados à query
+
+    conditionsAtributes = [cond[0] for cond in conditionArray]
+    attributes = conditionsAtributes + projList                     # Atributos associados à query
     attributes = list(dict.fromkeys(attributes))
-    attributePkDict = {}                                             # Dicionário atributo : lista de pks
+    attributePkDict = {}                                            # Dicionário atributo : lista de pks
 
     # Para cada atributo criar um dicionário de pks associados a esse atributo 
     for attribute in attributes:
@@ -141,13 +138,12 @@ def queryPerUser(sessCache, projList, paramConditionDictionary):
 
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    if paramConditionDictionary != {}:
-        for key in paramConditionDictionary:
-            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+    if conditionArray != []:
+        for cond in conditionArray:
+            keyPkList = [subQuery(session, pk, cond[0], cond[1], cond[2]) for pk in attributePkDict[cond[0]]]
             possiblePkLists.append(keyPkList)
     else:
-        for key in attributePkDict:
-            possiblePkLists.append(attributePkDict[key])
+        possiblePkLists = [attributePkDict[key] for key in attributePkDict]
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -193,14 +189,16 @@ def queryPerUser(sessCache, projList, paramConditionDictionary):
     return retList
 
 # Função de querying por utilizador dentro de uma range de valores de tempo
-def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, dateFinish):
+def rangeQueryPerUser(sessCache, projList, conditionArray, dateStart, dateFinish):
 
     user = sessCache[0]
     session = sessCache[1]
 
     possiblePkLists = []                                                                                            # Lista de pks que passaram todas as condições
-    userPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "'")]  
-    attributes = list(paramConditionDictionary.keys()) + projList                                                    # Atributos associados à query
+    userPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "'")]
+
+    conditionsAtributes = [cond[0] for cond in conditionArray]
+    attributes = conditionsAtributes + projList                                                    # Atributos associados à query
     attributes = list(dict.fromkeys(attributes))
     attributePkDict = {}                                                                                             # Dicionário atributo : lista de pks
 
@@ -213,13 +211,12 @@ def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, 
         attributePkDict[attribute] = [pk for pk in attributePkQuery if pk in userPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    if paramConditionDictionary != {}:
-        for key in paramConditionDictionary:
-            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+    if conditionArray != []:
+        for cond in conditionArray:
+            keyPkList = [subQuery(session, pk, cond[0], cond[1], cond[2]) for pk in attributePkDict[cond[0]]]
             possiblePkLists.append(keyPkList)
     else:
-        for key in attributePkDict:
-            possiblePkLists.append(attributePkDict[key])
+        possiblePkLists = [attributePkDict[key] for key in attributePkDict]
             
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -265,14 +262,16 @@ def rangeQueryPerUser(sessCache, projList, paramConditionDictionary, dateStart, 
     return retList
 
 # Função de querying por sensor
-def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
+def queryPerSensor(sessCache, sensor, projList, conditionArray):
 
     user = sessCache[0]
     session = sessCache[1]
 
     possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
     sensorPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]  
-    attributes = list(paramConditionDictionary.keys()) + projList                                                                                    # Atributos associados à query
+    
+    conditionsAtributes = [cond[0] for cond in conditionArray]
+    attributes = conditionsAtributes + projList                                                                                 # Atributos associados à query
     attributes = list(dict.fromkeys(attributes))
     attributePkDict = {}                                                                                                                             # Dicionário atributo : lista de pks
 
@@ -283,13 +282,12 @@ def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
         attributePkDict[attribute] = [row[0] for row in attributePkQuery if row[0] in sensorPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    if paramConditionDictionary != {}:
-        for key in paramConditionDictionary:
-            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+    if conditionArray != []:
+        for cond in conditionArray:
+            keyPkList = [subQuery(session, pk, cond[0], cond[1], cond[2]) for pk in attributePkDict[cond[0]]]
             possiblePkLists.append(keyPkList)
     else:
-        for key in attributePkDict:
-            possiblePkLists.append(attributePkDict[key])
+        possiblePkLists = [attributePkDict[key] for key in attributePkDict]
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
@@ -335,14 +333,16 @@ def queryPerSensor(sessCache, sensor, projList, paramConditionDictionary):
     return retList
 
 # Função de querying por sensor dentro de uma range de valores de tempo
-def rangeQueryPerSensor(sessCache, sensor, projList, paramConditionDictionary, dateStart, dateFinish):
+def rangeQueryPerSensor(sessCache, sensor, projList, conditionArray, dateStart, dateFinish):
     
     user = sessCache[0]
     session = sessCache[1]
 
     possiblePkLists = []                                                                                                                            # Lista de pks que passaram todas as condições
     sensorPks = [row[0] for row in session.execute("select pk from sensors where user = '" + user + "' and sensor_id = '" + sensor + "'")]
-    attributes = list(paramConditionDictionary.keys()) + projList                                                                                    # Atributos associados à query
+    
+    conditionsAtributes = [cond[0] for cond in conditionArray]
+    attributes = conditionsAtributes + projList                                                                                    # Atributos associados à query
     attributes = list(dict.fromkeys(attributes))
     attributePkDict = {}                                                                                                                             # Dicionário atributo : lista de pks
 
@@ -355,13 +355,12 @@ def rangeQueryPerSensor(sessCache, sensor, projList, paramConditionDictionary, d
         attributePkDict[attribute] = [pk for pk in attributePkQuery if pk in sensorPks]
 
     # Para cada atributo das condições efetuar subqueries para defnir os pks válidos para a query
-    if paramConditionDictionary != {}:
-        for key in paramConditionDictionary:
-            keyPkList = [subQuery(session, pk, key, paramConditionDictionary[key]) for pk in attributePkDict[key]]
+    if conditionArray != []:
+        for cond in conditionArray:
+            keyPkList = [subQuery(session, pk, cond[0], cond[1], cond[2]) for pk in attributePkDict[cond[0]]]
             possiblePkLists.append(keyPkList)
     else:
-        for key in attributePkDict:
-            possiblePkLists.append(attributePkDict[key])
+        possiblePkLists = [attributePkDict[key] for key in attributePkDict]
 
     if len(possiblePkLists):
         possiblePkLists = set(possiblePkLists[0]).intersection(*possiblePkLists)
