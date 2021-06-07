@@ -9,7 +9,7 @@ CONTACT_POINTS['10.0.12.65', '10.0.12.66']
 def register(user, passW):
     auth_provider = PlainTextAuthProvider(
         username='cassandra', password='cassandra')
-    cluster = Cluster(contact_points=CONTACT_POINTS auth_provider=auth_provider)
+    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
 
     session = cluster.connect('db')
 
@@ -23,7 +23,7 @@ def initializa(user, passW):
 
     auth_provider = PlainTextAuthProvider(
         username=user, password=passW)
-    cluster = Cluster(contact_points=CONTACT_POINTS auth_provider=auth_provider)
+    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
 
     session = cluster.connect('db_'+user)
 
@@ -35,7 +35,7 @@ def initializa(user, passW):
 def sessionLogin(user, passW):
     auth_provider = PlainTextAuthProvider(
         username=user, password=passW)
-    cluster = Cluster(contact_points=CONTACT_POINTS auth_provider=auth_provider)
+    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
 
     session = cluster.connect('db_'+user)
     ret = [user, session]
