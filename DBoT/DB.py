@@ -3,7 +3,7 @@ from cassandra.auth import PlainTextAuthProvider
 import uuid
 from datetime import datetime
 
-CONTACT_POINTS = '10.0.12.65'
+CONTACT_POINTS = ['10.0.12.65']
 
 # Função que regista um utilizador, criar o seu keyspace pessoal e a role de forma a podermos utilizar a autenticação de cassandra 
 def register(user, passW):
