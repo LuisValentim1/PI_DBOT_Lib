@@ -75,7 +75,7 @@ def insertInto(session, flatJson, pk_id):
     for key in flatJson:
         flag = 0
         keyLower = key.lower()
-        if flatJson[key].isdigit():
+        if str(flatJson[key]).isdigit():
                 flag = 1
         if not checkTable(session, keyLower):
             createTable(session, key, flag)
@@ -110,7 +110,7 @@ def subQuery(session, pk, param, condition, value):
 
     retList = []                                                            # Lista de pks a retornar
 
-    if not value.isdigit():
+    if not str(value).isdigit():
         condition = condition + "'" + value + "'"
     else:
         condition = condition + str(value) 
