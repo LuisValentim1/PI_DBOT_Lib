@@ -5,6 +5,8 @@ from datetime import datetime
 
 CONTACT_POINTS = ['10.0.12.65']
 
+#---------------------------- ROLES AND PERSONAL KEYSPACE HANDLING ---------------------------------
+
 # Função que regista um utilizador, criar o seu keyspace pessoal e a role de forma a podermos utilizar a autenticação de cassandra 
 def register(user, passW):
     auth_provider = PlainTextAuthProvider(
@@ -40,6 +42,8 @@ def sessionLogin(user, passW):
     session = cluster.connect('db_'+user)
     ret = [user, session]
     return ret
+
+#---------------------------- INSERTION FUNCTIONS ---------------------------------
 
 # Função para verificar se já existe tabela para um dado atributo
 def checkTable(session, attribute):
@@ -83,19 +87,23 @@ def insertInto(session, flatJson, pk_id):
         session.execute("insert into metadata_reverse(attribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
 
 # Função de inserção num sensor
-def insertIntoSensor(sessCache, flatJson, sensor_id):
+def insertIntoSensor(sessCache, flatJsonList, sensor_id):
 
-    session = sessCache[1]
-    user = sessCache[0]
+    for flatJson in flatJsonList:
 
-    sensor_id = str(sensor_id)
-    pk_id = str(uuid.uuid1())
+        session = sessCache[1]
+        user = sessCache[0]
 
-    insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
+        sensor_id = str(sensor_id)
+        pk_id = str(uuid.uuid1())
 
-    keys = [key.lower() for key in flatJson.keys()]
+        insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
 
-    session.execute("insert into sensors (sensor_id, user, pk, attributes) values('" + sensor_id + "', '" + user +"', '" + pk_id + "', " + str(keys) + ")")
+        keys = [key.lower() for key in flatJson.keys()]
+
+        session.execute("insert into sensors (sensor_id, user, pk, attributes) values('" + sensor_id + "', '" + user +"', '" + pk_id + "', " + str(keys) + ")")
+
+#---------------------------- QUERY FUNCTIONS ---------------------------------------------------
 
 # Subqueries de apoio a querying complexo // Procuram os pks que satisfazem uma condição em especifico 
 def subQuery(session, pk, param, condition, value):
@@ -111,7 +119,6 @@ def subQuery(session, pk, param, condition, value):
 
     try:
         pkRow = session.execute("Select pk from " + param + "_table where pk= '" + pk + "' and " + param + condition)   # Executar a query secundária
-        #print("Select pk from " + param + "_table where pk= '" + pk + "' and " + param + condition)
         pk_ret = pkRow.one()[0]
     except:
         pass
@@ -407,6 +414,8 @@ def rangeQueryPerSensor(sessCache, sensor, projList, conditionArray, dateStart, 
 
     return retList
 
+#---------------------------- AGGREGATION HANDLING ---------------------------------
+
 # Função para verificar se os parametros possuem agregações e se sim retirar do parametro 
 def agrHandler(param):
     agrList = ["AVG:", "MIN:", "MAX:", "SUM:", "CNT:"]
@@ -466,6 +475,8 @@ def sumHandler( returnList, attribute):
 def countHandler( returnList, attribute):
     return [{attribute: str(len(returnList)) }]
 
+#---------------------------- GET INFO / SUPPORT FUNCTIONS ---------------------------------
+
 # Função para retirar todos os resultados de um certo atributo
 def getAllValuesOn(sessCache, attribute):
 
@@ -509,6 +520,7 @@ def getAllSensorsAttributes(sessCache):
             sensorAttributesUnique.append(sensor)
     return sensorAttributesUnique
 
+# Função para receber os atributos de um sensor
 def getSensorAttributes(sessCache, sensor_id):
     
     user = sessCache[0]
