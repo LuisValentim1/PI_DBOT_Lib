@@ -42,7 +42,7 @@ def sessionLogin(user, passW):
     session = cluster.connect('db_'+user)
     ret = [user, session]
     return ret
-    
+
 #---------------------------- INSERTION FUNCTIONS ---------------------------------
 
 # Função para verificar se já existe tabela para um dado atributo
@@ -80,7 +80,7 @@ def insertInto(session, flatJson, pk_id):
         if not checkTable(session, keyLower):
             createTable(session, key, flag)
         if flag == 1:
-            session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', " + flatJson[key] + ")")
+            session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', " + str(flatJson[key]) + ")")
         else:
             session.execute("insert into " + keyLower + "_table(pk, " + keyLower + ") values('" + pk_id + "', '" + flatJson[key] + "')")
         session.execute("insert into metadata(attribute, pk, timestamp) values('" + keyLower + "', '" + pk_id + "', '" + timestampNow +"')")
