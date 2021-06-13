@@ -42,7 +42,7 @@ def sessionLogin(user, passW):
     session = cluster.connect('db_'+user)
     ret = [user, session]
     return ret
-
+    
 #---------------------------- INSERTION FUNCTIONS ---------------------------------
 
 # Função para verificar se já existe tabela para um dado atributo
@@ -75,7 +75,7 @@ def insertInto(session, flatJson, pk_id):
     for key in flatJson:
         flag = 0
         keyLower = key.lower()
-        if str(flatJson[key]).isdigit():
+        if check_float(str(flatJson[key])):
                 flag = 1
         if not checkTable(session, keyLower):
             createTable(session, key, flag)
@@ -110,7 +110,7 @@ def subQuery(session, pk, param, condition, value):
 
     retList = []                                                            # Lista de pks a retornar
 
-    if not str(value).isdigit():
+    if not check_float(str(value)):
         condition = condition + "'" + value + "'"
     else:
         condition = condition + str(value) 
@@ -476,6 +476,13 @@ def countHandler( returnList, attribute):
     return [{attribute: str(len(returnList)) }]
 
 #---------------------------- GET INFO / SUPPORT FUNCTIONS ---------------------------------
+
+def check_float(potential_float):
+    try:
+        float(potential_float)
+        return True
+    except ValueError:
+        return False
 
 # Função para retirar todos os resultados de um certo atributo
 def getAllValuesOn(sessCache, attribute):
