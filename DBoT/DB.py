@@ -48,7 +48,7 @@ def sessionLogin(user, passW):
 # Função para verificar se já existe tabela para um dado atributo
 def checkTable(session, attribute):
 
-    if attribute in [row[0] for row in session.execute("SELECT attribute FROM metadata") ] :
+    if attribute == session.execute("SELECT attribute FROM metadata").one()[0] :
         return True 
     return False                                                      
 
@@ -89,13 +89,13 @@ def insertInto(session, flatJson, pk_id):
 # Função de inserção num sensor
 def insertIntoSensor(sessCache, flatJsonList, sensor_id):
 
+    session = sessCache[1]
+    user = sessCache[0]
+
+    sensor_id = str(sensor_id)
+    pk_id = str(uuid.uuid1())
+
     for flatJson in flatJsonList:
-
-        session = sessCache[1]
-        user = sessCache[0]
-
-        sensor_id = str(sensor_id)
-        pk_id = str(uuid.uuid1())
 
         insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
 
