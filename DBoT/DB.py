@@ -3,7 +3,7 @@ from cassandra.auth import PlainTextAuthProvider
 import uuid
 from datetime import datetime
 
-CONTACT_POINTS = ['10.0.12.65']
+CONTACT_POINTS = ['10.0.12.65', '10.0.12.66']
 
 #---------------------------- ROLES AND PERSONAL KEYSPACE HANDLING ---------------------------------
 
