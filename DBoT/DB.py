@@ -46,11 +46,10 @@ def sessionLogin(user, passW):
 
 # Função para verificar se já existe tabela para um dado atributo
 def checkTable(session, attribute):
-    query = session.execute("SELECT attribute FROM metadata where attribute='" + attribute + "'")
-    if query is None:
-        return False
-    else:
-        return True                                                    
+
+    if attribute in [row[0] for row in session.execute("SELECT attribute FROM metadata") ] :
+        return True 
+    return False  
 
 # Função para criar tabelas  //  flag representa se a tabela a criar é para um atributo numérico ou de texto
 def createTable(session, attribute, flag):
