@@ -42,15 +42,15 @@ def sessionLogin(user, passW):
     session = cluster.connect('db_'+user)
     ret = [user, session]
     return ret
-
 #---------------------------- INSERTION FUNCTIONS ---------------------------------
 
 # Função para verificar se já existe tabela para um dado atributo
 def checkTable(session, attribute):
-
-    if attribute == session.execute("SELECT attribute FROM metadata").one()[0] :
-        return True 
-    return False                                                      
+    query = session.execute("SELECT attribute FROM metadata where attribute='" + attribute + "'")
+    if query is None:
+        return False
+    else:
+        return True                                                    
 
 # Função para criar tabelas  //  flag representa se a tabela a criar é para um atributo numérico ou de texto
 def createTable(session, attribute, flag):
