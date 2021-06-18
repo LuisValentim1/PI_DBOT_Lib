@@ -92,9 +92,10 @@ def insertIntoSensor(sessCache, flatJsonList, sensor_id):
     user = sessCache[0]
 
     sensor_id = str(sensor_id)
-    pk_id = str(uuid.uuid1())
 
     for flatJson in flatJsonList:
+
+        pk_id = str(uuid.uuid1())
 
         insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
 
