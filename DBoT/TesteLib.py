@@ -2,6 +2,7 @@ from DB import  *
 from Cache import Cache
 from JsonParser import JsonParser
 import time
+import cProfile
 
 c = Cache(5)
 
@@ -34,74 +35,81 @@ finishTimeParser = time.time()
 print("Parser start --- %s seconds ---" % (finishTimeParser - startTimeParser))
 
 startTimeP = time.time()
-flat_j1 = Parser_Obj.read_json('Json_Examples\Json1.json')
-flat_j2 = Parser_Obj.read_json('Json_Examples\Json2.json')
-flat_j3 = Parser_Obj.read_json('Json_Examples\Json3.json')
-flat_j4 = Parser_Obj.read_json('Json_Examples\Json4.json')
-flat_j5 = Parser_Obj.read_json('Json_Examples\Json5.json')
-flat_j6 = Parser_Obj.read_json('Json_Examples\Json6.json')
-flat_j7 = Parser_Obj.read_json('Json_Examples\Json7.json')
-flat_j8 = Parser_Obj.read_json('Json_Examples\Json8.json')
-flat_j9 = Parser_Obj.read_json('Json_Examples\Json9.json')
-flat_j10 = Parser_Obj.read_json('Json_Examples\Json10.json')
-flat_j11 = Parser_Obj.read_json('Json_Examples\Json11.json')
-flat_j12 = Parser_Obj.read_json('Json_Examples\Json12.json')
-flat_j13 = Parser_Obj.read_json('Json_Examples\Json13.json')
-flat_j14 = Parser_Obj.read_json('Json_Examples\Json14.json')
-flat_j15 = Parser_Obj.read_json('Json_Examples\Json15.json')
-flat_j16 = Parser_Obj.read_json('Json_Examples\Json16.json')
-flat_j17 = Parser_Obj.read_json('Json_Examples\Json17.json')
-flat_j18 = Parser_Obj.read_json('Json_Examples\Json18.json')
-flat_j19 = Parser_Obj.read_json('Json_Examples\Json19.json')
-flat_j20 = Parser_Obj.read_json('Json_Examples\Json20.json')
-flat_j21 = Parser_Obj.read_json('Json_Examples\Json21.json')
+
+flat_j1 = [Parser_Obj.read_json('Json_Examples\Json1.json')]
+flat_j2 = [Parser_Obj.read_json('Json_Examples\Json2.json')]
+flat_j3 = [Parser_Obj.read_json('Json_Examples\Json3.json')]
+flat_j4 = [Parser_Obj.read_json('Json_Examples\Json4.json')]
+flat_j5 = [Parser_Obj.read_json('Json_Examples\Json5.json')]
+flat_j6 = [Parser_Obj.read_json('Json_Examples\Json6.json')]
+flat_j7 = [Parser_Obj.read_json('Json_Examples\Json7.json')]
+flat_j8 = [Parser_Obj.read_json('Json_Examples\Json8.json')]
+flat_j9 = [Parser_Obj.read_json('Json_Examples\Json9.json')]
+flat_j10 = [Parser_Obj.read_json('Json_Examples\Json10.json')]
+flat_j11 = [Parser_Obj.read_json('Json_Examples\Json11.json')]
+flat_j12 = [Parser_Obj.read_json('Json_Examples\Json12.json')]
+flat_j13 = [Parser_Obj.read_json('Json_Examples\Json13.json')]
+flat_j14 = [Parser_Obj.read_json('Json_Examples\Json14.json')]
+flat_j15 = [Parser_Obj.read_json('Json_Examples\Json15.json')]
+flat_j16 = [Parser_Obj.read_json('Json_Examples\Json16.json')]
+flat_j17 = [Parser_Obj.read_json('Json_Examples\Json17.json')]
+flat_j18 = [Parser_Obj.read_json('Json_Examples\Json18.json')]
+flat_j19 = [Parser_Obj.read_json('Json_Examples\Json19.json')]
+flat_j20 = [Parser_Obj.read_json('Json_Examples\Json20.json')]
+flat_j21 = [Parser_Obj.read_json('Json_Examples\Json21.json')]
+
 finishTimeP = time.time()
 print("Parsing --- %s seconds ---" % (finishTimeP - startTimeP))
 
 startTimeI = time.time()
-insertIntoSensor(c.get("luis"), flat_j1, 2)
-insertIntoSensor(c.get("luis"), flat_j2, 1)
-insertIntoSensor(c.get("marta"), flat_j3, 2)
-insertIntoSensor(c.get("luis"), flat_j4, 3)
-insertIntoSensor(c.get("luis"), flat_j5, 1)
-insertIntoSensor(c.get("luis"), flat_j6, 4)
-insertIntoSensor(c.get("marta"), flat_j7, 2)
-insertIntoSensor(c.get("luis"), flat_j8, 4)
-insertIntoSensor(c.get("marta"), flat_j9, 2)
-insertIntoSensor(c.get("luis"), flat_j10, 1)
-insertIntoSensor(c.get("marta"), flat_j11, 2)
-insertIntoSensor(c.get("luis"), flat_j12, 10)
-insertIntoSensor(c.get("luis"), flat_j13, 1)
-insertIntoSensor(c.get("luis"), flat_j14, 18)
-insertIntoSensor(c.get("luis"), flat_j15, 21)
-insertIntoSensor(c.get("luis"), flat_j16, 1)
-insertIntoSensor(c.get("luis"), flat_j17, 21)
-insertIntoSensor(c.get("luis"), flat_j18, 12)
-insertIntoSensor(c.get("luis"), flat_j19, 18)
-insertIntoSensor(c.get("luis"), flat_j20, 21)
-insertIntoSensor(c.get("marta"), flat_j21, 2)
-insertIntoSensor(c.get("marta"), flat_j20, 2)
-insertIntoSensor(c.get("marta"), flat_j19, 2)
-insertIntoSensor(c.get("marta"), flat_j18, 2)
-insertIntoSensor(c.get("marta"), flat_j17, 2)
-insertIntoSensor(c.get("marta"), flat_j16, 2)
-insertIntoSensor(c.get("marta"), flat_j15, 2)
-insertIntoSensor(c.get("marta"), flat_j14, 2)
-insertIntoSensor(c.get("luis"), flat_j15, 1)
-insertIntoSensor(c.get("luis"), flat_j14, 3)
+def inserts():
+    for i in range(1):
+        insertIntoSensor(c.get("luis"), flat_j1, 2)
+        insertIntoSensor(c.get("luis"), flat_j2, 1)
+        insertIntoSensor(c.get("marta"), flat_j3, 2)
+        insertIntoSensor(c.get("luis"), flat_j4, 3)
+        insertIntoSensor(c.get("luis"), flat_j5, 1)
+        insertIntoSensor(c.get("luis"), flat_j6, 4)
+        insertIntoSensor(c.get("marta"), flat_j7, 2)
+        insertIntoSensor(c.get("luis"), flat_j8, 4)
+        insertIntoSensor(c.get("marta"), flat_j9, 2)
+        insertIntoSensor(c.get("luis"), flat_j10, 1)
+        insertIntoSensor(c.get("marta"), flat_j11, 2)
+        insertIntoSensor(c.get("luis"), flat_j12, 10)
+        insertIntoSensor(c.get("luis"), flat_j13, 1)
+        insertIntoSensor(c.get("luis"), flat_j14, 18)
+        insertIntoSensor(c.get("luis"), flat_j15, 21)
+        insertIntoSensor(c.get("luis"), flat_j16, 1)
+        insertIntoSensor(c.get("luis"), flat_j17, 21)
+        insertIntoSensor(c.get("luis"), flat_j18, 12)
+        insertIntoSensor(c.get("luis"), flat_j19, 18)
+        insertIntoSensor(c.get("luis"), flat_j20, 21)
+        insertIntoSensor(c.get("marta"), flat_j21, 2)
+        insertIntoSensor(c.get("marta"), flat_j20, 2)
+        insertIntoSensor(c.get("marta"), flat_j19, 2)
+        insertIntoSensor(c.get("marta"), flat_j18, 2)
+        insertIntoSensor(c.get("marta"), flat_j17, 2)
+        insertIntoSensor(c.get("marta"), flat_j16, 2)
+        insertIntoSensor(c.get("marta"), flat_j15, 2)
+        insertIntoSensor(c.get("marta"), flat_j14, 2)
+        insertIntoSensor(c.get("luis"), flat_j15, 1)
+        insertIntoSensor(c.get("luis"), flat_j14, 3)
+
+cProfile.run('inserts()')
+
 finishTimeI = time.time()
 print("Inserting --- %s seconds ---" % (finishTimeI - startTimeI))
 
 startTime1 = time.time()
-queryResult1 = rangeQueryPerUser(c.get("luis"), ['temperature'], [['temperature','<','13']], '2020-06-01 10:10:10', '2021-08-01 22:36:20.785976')
+queryResult1 = rangeQueryPerUser(c.get("luis"), ['temperature', 'sensorid'], [['temperature','<','13']], '2020-06-01 10:10:10', '2021-08-01 22:36:20.785976')
 finishTime1 = time.time()
 
 startTime2 = time.time()
-queryResult2 = queryPerUser(c.get("luis"), ['temperature'], [['temperature','<','13']])
+queryResult2 = queryPerUser(c.get("luis"), ['temperature','sensorid'], [['temperature','<','13']])
 finishTime2 = time.time()
 
 startTime3 = time.time()
-queryResult3 = rangeQueryPerUser(c.get("luis"), ['temperature'], [], '2020-05-30 10:10:10', '2021-08-01 22:36:20.785976')
+queryResult3 = rangeQueryPerUser(c.get("luis"), ['temperature', 'sensorid'], [], '2020-05-30 10:10:10', '2021-08-01 22:36:20.785976')
 finishTime3 = time.time()
 
 startTime4 = time.time()
@@ -182,4 +190,4 @@ printResults(queryResult12)
 print("Range Query Per Sensor --- %s seconds ---" % (finishTime12 - startTime12))
 print("\n")
 printResults(queryResult13)
-print("Query Test >= --- %s seconds ---" % (finishTime13 - startTime13))
+print("Query Test --- %s seconds ---" % (finishTime13 - startTime13))

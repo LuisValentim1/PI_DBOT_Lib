@@ -3,7 +3,7 @@ from cassandra.auth import PlainTextAuthProvider
 import uuid
 from datetime import datetime
 
-CONTACT_POINTS = ['10.0.12.65', '10.0.12.66']
+CONTACT_POINTS = []
 
 #---------------------------- ROLES AND PERSONAL KEYSPACE HANDLING ---------------------------------
 
@@ -11,7 +11,7 @@ CONTACT_POINTS = ['10.0.12.65', '10.0.12.66']
 def register(user, passW):
     auth_provider = PlainTextAuthProvider(
         username='cassandra', password='cassandra')
-    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
+    cluster = Cluster(auth_provider=auth_provider)
 
     session = cluster.connect('db')
 
@@ -25,7 +25,7 @@ def initializa(user, passW):
 
     auth_provider = PlainTextAuthProvider(
         username=user, password=passW)
-    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
+    cluster = Cluster(auth_provider=auth_provider)
 
     session = cluster.connect('db_'+user)
 
@@ -37,7 +37,7 @@ def initializa(user, passW):
 def sessionLogin(user, passW):
     auth_provider = PlainTextAuthProvider(
         username=user, password=passW)
-    cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
+    cluster = Cluster(auth_provider=auth_provider)
 
     session = cluster.connect('db_'+user)
     ret = [user, session]
@@ -70,12 +70,13 @@ def insertInto(session, flatJson, pk_id):
     else:
         timestampNow = str(datetime.now())
 
-    # Para cada parametro inserir na tabela do atributo e ambas as tabelas de metadados 
+    # Para cada parametro inserir na tabela do atributo e ambas as tabelas de metadados
     for key in flatJson:
         flag = 0
         keyLower = key.lower()
-        if check_float(str(flatJson[key])):
-                flag = 1
+        unit = flatJson[key]
+        if check_float(str(unit)):
+            flag = 1
         if not checkTable(session, keyLower):
             createTable(session, key, flag)
         if flag == 1:
@@ -92,9 +93,10 @@ def insertIntoSensor(sessCache, flatJsonList, sensor_id):
     user = sessCache[0]
 
     sensor_id = str(sensor_id)
-    pk_id = str(uuid.uuid1())
-
+    
     for flatJson in flatJsonList:
+
+        pk_id = str(uuid.uuid1())
 
         insertInto(session, flatJson, pk_id)             # Inserir o registo com a função principal de inserção
 
