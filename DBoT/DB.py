@@ -8,9 +8,9 @@ CONTACT_POINTS = ['10.0.12.65', '10.0.12.66']
 #---------------------------- ROLES AND PERSONAL KEYSPACE HANDLING ---------------------------------
 
 # Função que regista um utilizador, criar o seu keyspace pessoal e a role de forma a podermos utilizar a autenticação de cassandra 
-def register(user, passW):
+def register(user, passW, superUser, superPassword):
     auth_provider = PlainTextAuthProvider(
-        username='cassandra', password='cassandra')
+        username=superUser, password=superPassword)
     cluster = Cluster(contact_points=CONTACT_POINTS, auth_provider=auth_provider)
 
     session = cluster.connect('db')
